@@ -13,6 +13,7 @@ package appeng.items.misc;
 import static appeng.helpers.PatternHelper.convertToCondensedAEList;
 import static appeng.helpers.UltimatePatternHelper.loadIAEStackFromNBT;
 
+import java.awt.Dimension;
 import java.text.NumberFormat;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -28,6 +29,7 @@ import java.util.WeakHashMap;
 import java.util.stream.Collectors;
 
 import net.minecraft.client.gui.GuiScreen;
+import net.minecraft.client.renderer.RenderHelper;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.InventoryPlayer;
 import net.minecraft.init.Blocks;
@@ -39,6 +41,11 @@ import net.minecraft.world.World;
 import net.minecraftforge.client.MinecraftForgeClient;
 import net.minecraftforge.common.util.Constants.NBT;
 import net.minecraftforge.event.ForgeEventFactory;
+
+import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL12;
+
+import com.github.bsideup.jabel.Desugar;
 
 import appeng.api.AEApi;
 import appeng.api.implementations.ICraftingPatternItem;
@@ -53,7 +60,11 @@ import appeng.core.localization.GuiText;
 import appeng.helpers.PatternHelper;
 import appeng.items.AEBaseItem;
 import appeng.util.Platform;
+import codechicken.lib.colour.LocalizedColours;
+import codechicken.lib.gui.GuiDraw;
+import codechicken.lib.gui.GuiDraw.ITooltipLineHandler;
 import codechicken.nei.NEIClientConfig;
+import codechicken.nei.guihook.GuiContainerManager;
 import gregtech.common.items.ItemIntegratedCircuit;
 
 public class ItemEncodedPattern extends AEBaseItem implements ICraftingPatternItem {
@@ -300,8 +311,7 @@ public class ItemEncodedPattern extends AEBaseItem implements ICraftingPatternIt
                             ? Platform.getItemDisplayName(item) + " " + ais.getItemStack().getItemDamage()
                             : Platform.getItemDisplayName(item);
 
-            final String fullText = "   " + EnumChatFormatting.WHITE
-                    + itemCountText
+            final String fullText = EnumChatFormatting.WHITE + itemCountText
                     + EnumChatFormatting.RESET
                     + EnumChatFormatting.WHITE
                     + type.getDisplayUnit()
@@ -314,10 +324,39 @@ public class ItemEncodedPattern extends AEBaseItem implements ICraftingPatternIt
                 lines.add(label);
             }
 
-            lines.add(fullText);
+            lines.add(
+                    GuiDraw.TOOLTIP_HANDLER
+                            + GuiDraw.getTipLineId(new StackIconTooltipLine(item.getItemStackForNEI(), fullText)));
             first = false;
         }
 
         return false;
+    }
+
+    @Desugar
+    private record StackIconTooltipLine(ItemStack stack, String text) implements ITooltipLineHandler {
+
+        private static final int ICON_SPACE = 10;
+
+        @Override
+        public Dimension getSize() {
+            return new Dimension(ICON_SPACE + GuiDraw.fontRenderer.getStringWidth(text), 10);
+        }
+
+        @Override
+        public void draw(int x, int y) {
+            GuiDraw.fontRenderer.drawStringWithShadow(text, x + ICON_SPACE, y, LocalizedColours.TOOLTIP_TEXT);
+            if (stack == null) return;
+
+            GL11.glPushMatrix();
+            GL11.glPushAttrib(GL11.GL_ENABLE_BIT | GL11.GL_COLOR_BUFFER_BIT | GL11.GL_LIGHTING_BIT);
+            GL11.glEnable(GL12.GL_RESCALE_NORMAL);
+            RenderHelper.enableGUIStandardItemLighting();
+            GL11.glTranslatef(x, y, GuiContainerManager.TOOLTIP_Z_OFFSET);
+            GL11.glScalef(0.5f, 0.5f, 1f);
+            GuiContainerManager.drawItem(0, 0, stack, true, "");
+            GL11.glPopAttrib();
+            GL11.glPopMatrix();
+        }
     }
 }
